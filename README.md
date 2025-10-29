@@ -10,7 +10,7 @@ cd C:/Users/Tincho/Documents/RutaSegura/backend
 
 # Crear entorno virtual:
 
-# Opción A: Con venv (recomendado)
+# Con venv (recomendado)
 python -m venv venv
 
 2. Activar el entorno virtual
