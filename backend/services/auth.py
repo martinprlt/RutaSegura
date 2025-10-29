@@ -10,6 +10,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.settings import settings
 from schemas.auth import TokenData
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 
 # Configuración de bcrypt para hashear passwords
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -110,3 +112,15 @@ async def obtener_usuario_por_email(db: AsyncSession, email: str):
         "fecha_registro": usuario.fecha_registro,
         "ultimo_acceso": usuario.ultimo_acceso
     }
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
+
+async def obtener_usuario_actual(token: str = Depends(oauth2_scheme)):
+    """
+    Dependencia simple que valida que exista token.
+    Reemplaza la lógica real de decodificación/DB según tu proyecto.
+    """
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
+    # TODO: decodificar token y obtener usuario desde DB/servicio
+    return {"id": 1, "username": "usuario_demo"}

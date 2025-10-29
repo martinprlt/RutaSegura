@@ -1,16 +1,17 @@
 """
-Aplicación principal FastAPI
-Sistema de Gestión de Siniestros Viales
+Sistema de Gestión de Siniestros Viales - La Rioja
+FastAPI Backend
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import logging
 
-from config.database import init_db, close_db
 from config.settings import settings
+from config.database import init_db, close_db
 
-# Importar todos los routers
+# Importar routers
 from routers import (
     auth_router,
     usuarios_router,
@@ -21,47 +22,37 @@ from routers import (
     reportes_router
 )
 
-# Lifespan para inicializar y cerrar la base de datos
+# Lifecycle events
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Manejo de eventos de inicio y cierre de la aplicación"""
     # Startup
-    print("🚀 Iniciando aplicación...")
     await init_db()
-    print("✅ Base de datos conectada")
-    
+    print("✅ Base de datos inicializada")
     yield
-    
     # Shutdown
-    print("🔴 Cerrando aplicación...")
     await close_db()
-    print("✅ Base de datos desconectada")
+    print("✅ Conexiones cerradas")
 
-# Crear aplicación FastAPI
+# Crear aplicación
 app = FastAPI(
-    title="Sistema de Gestión de Siniestros Viales",
-    description="""
-    API REST para gestión y análisis de siniestros de tránsito en La Rioja.
-    
-    ## Características
-    * Autenticación con JWT
-    * CRUD completo de entidades
-    * Reportes estadísticos con consultas complejas
-    * Análisis de datos de siniestros viales
-    
-    ## Tecnologías
-    * FastAPI - Framework web
-    * MySQL - Base de datos
-    * SQLAlchemy - ORM asíncrono
-    * JWT - Autenticación
-    """,
-    version="1.0.0",
+    title=settings.API_TITLE,
+    version=settings.API_VERSION,
+    description=settings.API_DESCRIPTION,
     lifespan=lifespan
 )
 
-# Configurar CORS
+# logging básico para ver tracebacks en la consola
+logging.basicConfig(level=logging.INFO)
+
+# CORS: permitir el front durante desarrollo
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173"
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -77,23 +68,22 @@ app.include_router(vehiculos_router)
 app.include_router(reportes_router)
 
 # Ruta raíz
-@app.get("/", tags=["Root"])
+@app.get("/")
 async def root():
-    """Endpoint raíz de la API"""
+    """Endpoint raíz"""
     return {
-        "mensaje": "API de Gestión de Siniestros Viales",
-        "version": "1.0.0",
-        "docs": "/docs",
-        "redoc": "/redoc"
+        "mensaje": "Sistema de Gestión de Siniestros Viales - API",
+        "version": settings.API_VERSION,
+        "documentacion": "/docs",
+        "status": "activo"
     }
 
 # Health check
-@app.get("/health", tags=["Health"])
+@app.get("/health")
 async def health_check():
-    """Verifica el estado de la API"""
-    return {"status": "healthy", "database": "connected"}
+    """Health check endpoint"""
+    return {"status": "healthy"}
 
-# Para ejecutar con: uvicorn main:app --reload
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(

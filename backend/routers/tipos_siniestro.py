@@ -60,7 +60,7 @@ async def actualizar_tipo_siniestro(
     if usuario_actual["rol"] not in ["admin", "editor"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permisos para actualizar tipos de siniestro"
+            detail="No tienes permisos para actualizar tipos"
         )
     
     tipo = await tipos_service.actualizar_tipo_siniestro(db, tipo_id, tipo_update)
@@ -81,7 +81,7 @@ async def eliminar_tipo_siniestro(
     if usuario_actual["rol"] != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo administradores pueden eliminar tipos de siniestro"
+            detail="Solo administradores pueden eliminar tipos"
         )
     
     eliminado = await tipos_service.eliminar_tipo_siniestro(db, tipo_id)

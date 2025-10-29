@@ -3,9 +3,10 @@ Servicio para gestión de siniestros
 Incluye consultas complejas con INNER JOIN y subconsultas
 """
 
-from sqlalchemy import text
+from sqlalchemy import text, select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
+import logging
 from schemas.siniestro import SiniestroCreate, SiniestroUpdate
 
 async def crear_siniestro(db: AsyncSession, siniestro: SiniestroCreate) -> dict:
@@ -232,17 +233,41 @@ async def actualizar_siniestro(db: AsyncSession, siniestro_id: int, siniestro_up
     
     return await obtener_siniestro_por_id(db, siniestro_id)
 
-async def eliminar_siniestro(db: AsyncSession, siniestro_id: int) -> bool:
-    """Elimina siniestro"""
-    query = text("""
-        DELETE FROM siniestros
-        WHERE id = :id
-    """)
-    
-    result = await db.execute(query, {"id": siniestro_id})
-    await db.commit()
-    
-    return result.rowcount > 0
+# ✅ CORREGIDO: Función simplificada sin dependencias de modelos
+async def eliminar_siniestro(db: AsyncSession, siniestro_id: int, usuario_id: int, es_admin: bool = False) -> bool:
+    """
+    Elimina un siniestro verificando permisos
+    - Admin puede borrar cualquier siniestro
+    - Usuario normal solo puede borrar sus propios siniestros
+    """
+    try:
+        # Primero verificar si el siniestro existe y obtener el usuario que lo creó
+        query_verificar = text("""
+            SELECT usuario_id FROM siniestros WHERE id = :siniestro_id
+        """)
+        result = await db.execute(query_verificar, {"siniestro_id": siniestro_id})
+        siniestro = result.fetchone()
+        
+        if not siniestro:
+            return False
+        
+        # Verificar permisos
+        if not es_admin and siniestro.usuario_id != usuario_id:
+            raise PermissionError("No tienes permiso para eliminar este siniestro")
+        
+        # Eliminar el siniestro
+        query_eliminar = text("DELETE FROM siniestros WHERE id = :siniestro_id")
+        await db.execute(query_eliminar, {"siniestro_id": siniestro_id})
+        await db.commit()
+        
+        return True
+
+    except PermissionError:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logging.error(f"Error al eliminar siniestro {siniestro_id}: {str(e)}")
+        return False
 
 async def contar_siniestros(
     db: AsyncSession,
@@ -280,3 +305,8 @@ async def contar_siniestros(
     row = result.fetchone()
     
     return row.total if row else 0
+
+# ✅ FUNCIÓN ALTERNATIVA: Si prefieres mantener el nombre original pero sin modelos
+async def delete_siniestro(db: AsyncSession, siniestro_id: int, usuario_id: int, es_admin: bool = False) -> bool:
+    """Alias para eliminar_siniestro - mantiene compatibilidad"""
+    return await eliminar_siniestro(db, siniestro_id, usuario_id, es_admin)

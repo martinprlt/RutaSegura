@@ -3,7 +3,7 @@
  */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../context/AuthContext.jsx';
 import { AlertCircle, Shield } from 'lucide-react';
 
 export default function Login() {

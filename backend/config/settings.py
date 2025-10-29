@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
+    # API Configuration - ✅ AGREGAR ESTOS CAMPOS
+    API_TITLE: str = "Sistema de Gestión de Siniestros Viales"
+    API_VERSION: str = "1.0.0"
+    API_DESCRIPTION: str = "Backend para el sistema de gestión de siniestros viales de La Rioja"
+    
     # CORS
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
     
@@ -32,7 +37,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
-        extra="ignore"  # ← ESTO es clave: ignora campos extra del .env
+        extra="ignore"
     )
 
 settings = Settings()

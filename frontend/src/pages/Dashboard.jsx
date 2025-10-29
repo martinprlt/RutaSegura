@@ -2,7 +2,8 @@
  * Dashboard principal con estadísticas y gráficos
  */
 import { useState, useEffect } from 'react';
-import { reportesService } from '../services/api';
+// Corregir el import según tu estructura de archivos
+import { getResumen, getSiniestrosPorZona, getEstadisticasPorTipo, getSiniestrosPorDia } from '../services/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { AlertTriangle, TrendingUp, MapPin, Car } from 'lucide-react';
 
@@ -14,52 +15,105 @@ export default function Dashboard() {
   const [estadisticasPorTipo, setEstadisticasPorTipo] = useState([]);
   const [siniestrosPorDia, setSiniestrosPorDia] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     cargarDatos();
   }, []);
 
   const cargarDatos = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const [resumenData, zonasData, tiposData, diasData] = await Promise.all([
-        reportesService.getResumenGeneral(),
-        reportesService.getSiniestrosPorZona(),
-        reportesService.getEstadisticasPorTipo(),
-        reportesService.getSiniestrosPorDiaSemana(),
-      ]);
+        // Resumen general
+        const resumenResp = await getResumen();
+        setResumen(resumenResp?.data ?? {});
 
-      setResumen(resumenData);
-      setSiniestrosPorZona(zonasData);
-      setEstadisticasPorTipo(tiposData);
-      setSiniestrosPorDia(diasData);
-    } catch (error) {
-      console.error('Error al cargar datos:', error);
+        // Siniestros por zona 
+        const respZona = await getSiniestrosPorZona();
+        const zonasData = respZona?.data?.map(item => ({
+            ...item,
+            total: Number(item.total)
+        })) ?? [];
+        setSiniestrosPorZona(zonasData);
+
+        // Estadísticas por tipo
+        const respTipo = await getEstadisticasPorTipo();
+        const tiposData = respTipo?.data?.map(item => ({
+            tipo_siniestro: item.tipo,
+            cantidad: Number(item.total),
+            gravedad: Number(item.gravedad_media)
+        })) ?? [];
+        setEstadisticasPorTipo(tiposData);
+
+        // Siniestros por día
+        const respDia = await getSiniestrosPorDia();
+        const diasData = respDia?.data?.map((item, index) => ({
+            dia_semana: item.dia_semana ?? `Día ${index + 1}`,
+            total: Number(item.total)
+        })) ?? [];
+        setSiniestrosPorDia(diasData);
+
+    } catch (err) {
+        console.error("Error cargando datos:", err);
+        setError(err?.message ?? "Error al cargar datos");
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
+  };
+
+  // Función para recargar datos
+  const recargarDatos = () => {
+    cargarDatos();
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Cargando estadísticas...</p>
         </div>
       </div>
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Error al cargar datos</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={recargarDatos}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-1">Vista general de siniestros viales</p>
+    <div className="space-y-6 p-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600 mt-1">Vista general de siniestros viales</p>
+        </div>
+        <button
+          onClick={recargarDatos}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Actualizar Datos
+        </button>
       </div>
 
-      {/* Tarjetas de resumen */}
+      {/* Tarjetas de resumen */} 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="card">
+        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Siniestros</p>
@@ -67,13 +121,13 @@ export default function Dashboard() {
                 {resumen?.total_siniestros || 0}
               </p>
             </div>
-            <div className="p-3 bg-primary-100 rounded-full">
-              <AlertTriangle className="w-6 h-6 text-primary-600" />
+            <div className="p-3 bg-blue-100 rounded-full">
+              <AlertTriangle className="w-6 h-6 text-blue-600" />
             </div>
           </div>
         </div>
 
-        <div className="card">
+        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Víctimas Fatales</p>
@@ -87,7 +141,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="card">
+        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Heridos</p>
@@ -101,7 +155,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="card">
+        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Siniestros Graves</p>
@@ -119,7 +173,7 @@ export default function Dashboard() {
       {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Siniestros por Zona */}
-        <div className="card">
+        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
           <h3 className="text-lg font-semibold mb-4">Siniestros por Zona</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={siniestrosPorZona}>
@@ -135,7 +189,7 @@ export default function Dashboard() {
         </div>
 
         {/* Estadísticas por Tipo */}
-        <div className="card">
+        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
           <h3 className="text-lg font-semibold mb-4">Distribución por Tipo</h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
@@ -158,7 +212,7 @@ export default function Dashboard() {
         </div>
 
         {/* Siniestros por Día de la Semana */}
-        <div className="card lg:col-span-2">
+        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 lg:col-span-2">
           <h3 className="text-lg font-semibold mb-4">Siniestros por Día de la Semana</h3>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={siniestrosPorDia}>
@@ -187,7 +241,7 @@ export default function Dashboard() {
       </div>
 
       {/* Tabla de tipos de siniestro */}
-      <div className="card">
+      <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
         <h3 className="text-lg font-semibold mb-4">Detalle por Tipo de Siniestro</h3>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -195,9 +249,6 @@ export default function Dashboard() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                   Tipo
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Gravedad
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                   Cantidad
@@ -208,9 +259,6 @@ export default function Dashboard() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                   Heridos
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Fin de Semana
-                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -219,26 +267,14 @@ export default function Dashboard() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {tipo.tipo_siniestro}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      tipo.gravedad === 'alta' ? 'bg-red-100 text-red-800' :
-                      tipo.gravedad === 'media' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-green-100 text-green-800'
-                    }`}>
-                      {tipo.gravedad.toUpperCase()}
-                    </span>
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                     {tipo.cantidad}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">
-                    {tipo.fallecidos}
+                    {tipo.fallecidos || 0}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-orange-600">
-                    {tipo.heridos}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {tipo.porcentaje_fin_semana}%
+                    {tipo.heridos || 0}
                   </td>
                 </tr>
               ))}

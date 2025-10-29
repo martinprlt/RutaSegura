@@ -1,6 +1,5 @@
 """
 Router de vehículos involucrados
-Endpoints CRUD para vehículos
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -32,16 +31,16 @@ async def crear_vehiculo(
 async def listar_vehiculos_por_siniestro(
     siniestro_id: int,
     db: AsyncSession = Depends(get_db),
-    usuario_actual: dict = Depends(obtener_usuario_actual)
+    _: dict = Depends(obtener_usuario_actual)
 ):
-    """Lista todos los vehículos de un siniestro específico"""
+    """Lista vehículos de un siniestro específico"""
     return await vehiculos_service.obtener_vehiculos_por_siniestro(db, siniestro_id)
 
 @router.get("/{vehiculo_id}", response_model=VehiculoResponse)
 async def obtener_vehiculo(
     vehiculo_id: int,
     db: AsyncSession = Depends(get_db),
-    usuario_actual: dict = Depends(obtener_usuario_actual)
+    _: dict = Depends(obtener_usuario_actual)
 ):
     """Obtiene un vehículo por ID"""
     vehiculo = await vehiculos_service.obtener_vehiculo_por_id(db, vehiculo_id)

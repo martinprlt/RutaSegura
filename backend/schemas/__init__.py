@@ -34,10 +34,9 @@ from .tipo_siniestro import (
 
 from .siniestro import (
     SiniestroBase,
-    SiniestroCreate,
+    SiniestroCreate, 
     SiniestroUpdate,
-    SiniestroResponse,
-    SiniestroDetallado
+    SiniestroOut
 )
 
 from .vehiculo import (
@@ -78,8 +77,7 @@ __all__ = [
     "SiniestroBase",
     "SiniestroCreate",
     "SiniestroUpdate",
-    "SiniestroResponse",
-    "SiniestroDetallado",
+    "SiniestroOut",
     
     # Vehículo
     "VehiculoBase",
