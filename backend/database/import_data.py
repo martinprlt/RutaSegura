@@ -1,279 +1,353 @@
 """
 Script para importar datos de CSVs a la base de datos MySQL
-Sistema de Gestión de Siniestros Viales
+Sistema de Gestión de Siniestros Viales - CSVs con separador ;
 """
 
 import pandas as pd
 import mysql.connector
 from mysql.connector import Error
 import bcrypt
-from datetime import datetime
+import os
 
 # Configuración de conexión a MySQL
 DB_CONFIG = {
     'host': 'localhost',
+    'port': 3306,
     'user': 'root',
-    'password': 'tu_password',  # Cambiar por tu password
+    'password': '',
     'database': 'siniestros_viales'
 }
 
-def crear_conexion():
-    """Crea conexión a MySQL"""
+def conectar_db():
+    """Establece conexión con MySQL"""
     try:
         conn = mysql.connector.connect(**DB_CONFIG)
         if conn.is_connected():
             print("✓ Conexión exitosa a MySQL")
             return conn
     except Error as e:
-        print(f"✗ Error al conectar a MySQL: {e}")
+        print(f"✗ Error al conectar: {e}")
         return None
 
-def hashear_password(password):
-    """Genera hash bcrypt de password"""
-    salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+def leer_csv_seguro(nombre_archivo):
+    """Lee CSV con diferentes encodings y separadores"""
+    encodings = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252']
+    separadores = [';', ',', '\t']
+    
+    for encoding in encodings:
+        for sep in separadores:
+            try:
+                df = pd.read_csv(nombre_archivo, encoding=encoding, sep=sep)
+                if len(df.columns) > 1:
+                    print(f"   ✓ Leído con encoding: {encoding}, separador: '{sep}'")
+                    print(f"   Columnas: {list(df.columns)[:5]}...")
+                    return df
+            except:
+                continue
+    
+    print(f"   ✗ No se pudo leer: {nombre_archivo}")
+    return None
 
-def importar_usuarios(conn, csv_path='../data/USUARIOS.csv'):
-    """Importa usuarios desde CSV"""
-    try:
-        df = pd.read_csv(csv_path)
-        cursor = conn.cursor()
+def importar_usuarios(conn):
+    """Importa usuarios (crea por defecto)"""
+    usuarios_default = [
+        ('admin@rutasegura.com', 'admin123', 'Administrador Sistema', 'admin', '2024-01-15'),
+        ('editor@rutasegura.com', 'editor123', 'Carlos Rodriguez', 'editor', '2024-01-15'),
+        ('consultor@rutasegura.com', 'consultor123', 'Ana Martinez', 'consultor', '2024-01-15')
+    ]
+    
+    cursor = conn.cursor()
+    count = 0
+    
+    for email, password, nombre, rol, fecha_registro in usuarios_default:
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
-        # Password por defecto para todos (cambiar en producción)
-        default_password = hashear_password('admin123')
+        query = """
+            INSERT INTO usuarios (email, password_hash, nombre, rol, fecha_registro, activo)
+            VALUES (%s, %s, %s, %s, %s, 1)
+            ON DUPLICATE KEY UPDATE nombre = VALUES(nombre)
+        """
         
-        for _, row in df.iterrows():
-            sql = """
-                INSERT INTO usuarios (id, email, password_hash, nombre, rol, fecha_registro)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """
-            valores = (
-                row['id'],
-                row['email'],
-                default_password,
-                row['nombre'],
-                row['rol'],
-                row['fecha_registro']
-            )
-            cursor.execute(sql, valores)
-        
-        conn.commit()
-        print(f"✓ {len(df)} usuarios importados")
-        cursor.close()
-        
-    except Exception as e:
-        print(f"✗ Error importando usuarios: {e}")
-        conn.rollback()
+        cursor.execute(query, (email, password_hash, nombre, rol, fecha_registro))
+        count += 1
+    
+    conn.commit()
+    cursor.close()
+    print(f"   ✓ Creados {count} usuarios")
+    return count
 
-def importar_avenidas(conn, csv_path='AVENIDAS.csv'):
+def importar_avenidas(conn):
     """Importa avenidas desde CSV"""
+    archivo = 'AVENIDAS.csv'
+    
+    if not os.path.exists(archivo):
+        print(f"   ✗ {archivo} no encontrado")
+        return 0
+    
     try:
-        df = pd.read_csv(csv_path)
+        df = leer_csv_seguro(archivo)
+        if df is None:
+            return 0
+        
         cursor = conn.cursor()
+        count = 0
+        
+        df.columns = df.columns.str.strip()
         
         for _, row in df.iterrows():
-            sql = """
-                INSERT INTO avenidas (id, nombre, tipo, zona, longitud_km)
-                VALUES (%s, %s, %s, %s, %s)
+            query = """
+                INSERT INTO avenidas (nombre, tipo, zona, longitud_km)
+                VALUES (%s, %s, %s, %s)
             """
-            valores = (
-                row['id'],
-                row['nombre'],
-                row['tipo'],
-                row['zona'],
-                row['longitud_km']
+            
+            values = (
+                str(row['nombre']).strip(),
+                str(row['tipo']).strip(),
+                str(row['zona']).strip(),
+                float(row['longitud_km'])
             )
-            cursor.execute(sql, valores)
+            
+            cursor.execute(query, values)
+            count += 1
         
         conn.commit()
-        print(f"✓ {len(df)} avenidas importadas")
         cursor.close()
+        print(f"   ✓ Importados {count} registros")
+        return count
         
     except Exception as e:
-        print(f"✗ Error importando avenidas: {e}")
+        print(f"   ✗ Error: {e}")
         conn.rollback()
+        return 0
 
-def importar_tipos_siniestro(conn, csv_path='TIPOS_SINIESTRO.csv'):
+def importar_tipos_siniestro(conn):
     """Importa tipos de siniestro desde CSV"""
+    archivo = 'TIPOS_SINIESTRO.csv'
+    
+    if not os.path.exists(archivo):
+        print(f"   ✗ {archivo} no encontrado")
+        return 0
+    
     try:
-        df = pd.read_csv(csv_path)
+        df = leer_csv_seguro(archivo)
+        if df is None:
+            return 0
+        
         cursor = conn.cursor()
+        count = 0
+        
+        df.columns = df.columns.str.strip()
         
         for _, row in df.iterrows():
-            sql = """
-                INSERT INTO tipos_siniestro (id, nombre, gravedad)
+            query = """
+                INSERT INTO tipos_siniestro (nombre, gravedad, descripcion)
                 VALUES (%s, %s, %s)
             """
-            valores = (
-                row['id'],
-                row['nombre'],
-                row['gravedad']
+            
+            descripcion = None
+            if 'descripcion' in df.columns and pd.notna(row.get('descripcion')):
+                descripcion = str(row['descripcion']).strip()
+            
+            values = (
+                str(row['nombre']).strip(),
+                str(row['gravedad']).strip(),
+                descripcion
             )
-            cursor.execute(sql, valores)
+            
+            cursor.execute(query, values)
+            count += 1
         
         conn.commit()
-        print(f"✓ {len(df)} tipos de siniestro importados")
         cursor.close()
+        print(f"   ✓ Importados {count} registros")
+        return count
         
     except Exception as e:
-        print(f"✗ Error importando tipos de siniestro: {e}")
+        print(f"   ✗ Error: {e}")
         conn.rollback()
+        return 0
 
-def importar_siniestros(conn, csv_path='SINIESTROS.csv'):
+def importar_siniestros(conn):
     """Importa siniestros desde CSV"""
+    archivo = 'SINIESTROS.csv'
+    
+    if not os.path.exists(archivo):
+        print(f"   ✗ {archivo} no encontrado")
+        return 0
+    
     try:
-        df = pd.read_csv(csv_path)
-        cursor = conn.cursor()
+        df = leer_csv_seguro(archivo)
+        if df is None:
+            return 0
         
-        # Convertir 'False'/'True' string a booleano
-        df['es_fin_de_semana'] = df['es_fin_de_semana'].map({
-            'False': False, 
-            'True': True,
-            False: False,
-            True: True
-        })
+        cursor = conn.cursor()
+        count = 0
+        
+        df.columns = df.columns.str.strip()
         
         for _, row in df.iterrows():
-            sql = """
+            query = """
                 INSERT INTO siniestros (
-                    id, fecha, hora, avenida_id, tipo_id, nivel_gravedad,
+                    fecha, hora, avenida_id, tipo_id, nivel_gravedad,
                     victimas_fatales, heridos, num_vehiculos, dia_semana,
                     es_fin_de_semana, usuario_id, observaciones
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            valores = (
-                row['id'],
+            
+            observaciones = None
+            if 'observaciones' in df.columns and pd.notna(row.get('observaciones')):
+                observaciones = str(row['observaciones']).strip()
+            
+            values = (
                 row['fecha'],
                 row['hora'],
-                row['avenida_id'],
-                row['tipo_id'],
-                row['nivel_gravedad'],
-                row['victimas_fatales'],
-                row['heridos'],
-                row['num_vehiculos'],
-                row['dia_semana'],
-                row['es_fin_de_semana'],
-                row['usuario_id'],
-                row['observaciones']
+                int(row['avenida_id']),
+                int(row['tipo_id']),
+                str(row['nivel_gravedad']).strip(),
+                int(row['victimas_fatales']),
+                int(row['heridos']),
+                int(row['num_vehiculos']),
+                str(row['dia_semana']).strip(),
+                bool(int(row['es_fin_de_semana'])),
+                int(row['usuario_id']),
+                observaciones
             )
-            cursor.execute(sql, valores)
+            
+            cursor.execute(query, values)
+            count += 1
         
         conn.commit()
-        print(f"✓ {len(df)} siniestros importados")
         cursor.close()
+        print(f"   ✓ Importados {count} registros")
+        return count
         
     except Exception as e:
-        print(f"✗ Error importando siniestros: {e}")
+        print(f"   ✗ Error: {e}")
         conn.rollback()
+        return 0
 
-def importar_vehiculos(conn, csv_path='VEHICULOS_INVOLUCRADOS.csv'):
+def importar_vehiculos(conn):
     """Importa vehículos involucrados desde CSV"""
+    archivo = 'VEHICULOS_INVOLUCRADOS.csv'
+    
+    if not os.path.exists(archivo):
+        print(f"   ✗ {archivo} no encontrado")
+        return 0
+    
     try:
-        df = pd.read_csv(csv_path)
-        cursor = conn.cursor()
+        df = leer_csv_seguro(archivo)
+        if df is None:
+            return 0
         
-        # Convertir 'False'/'True' string a booleano
-        df['es_fallecido'] = df['es_fallecido'].map({
-            'False': False, 
-            'True': True,
-            False: False,
-            True: True
-        })
+        cursor = conn.cursor()
+        count = 0
+        
+        df.columns = df.columns.str.strip()
         
         for _, row in df.iterrows():
-            sql = """
+            query = """
                 INSERT INTO vehiculos_involucrados (
-                    vehiculo_id, siniestro_id, tipo_vehiculo, marca,
-                    modelo, rol, es_fallecido
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    siniestro_id, tipo_vehiculo, marca, modelo, rol, es_fallecido
+                ) VALUES (%s, %s, %s, %s, %s, %s)
             """
-            valores = (
-                row['vehiculo_id'],
-                row['siniestro_id'],
-                row['tipo_vehiculo'],
-                row['marca'],
-                row['modelo'],
-                row['rol'],
-                row['es_fallecido']
+            
+            marca = row.get('marca', 'Indefinido')
+            if pd.isna(marca) or str(marca).strip() == '':
+                marca = 'Indefinido'
+            
+            modelo = row.get('modelo', 'Indefinido')
+            if pd.isna(modelo) or str(modelo).strip() == '':
+                modelo = 'Indefinido'
+            
+            es_fallecido = row.get('es_fallecido', False)
+            if pd.isna(es_fallecido):
+                es_fallecido = False
+            if isinstance(es_fallecido, str):
+                es_fallecido = es_fallecido.lower() in ['true', '1', 'si', 'sí', 'yes']
+            
+            values = (
+                int(row['siniestro_id']),
+                str(row['tipo_vehiculo']).strip(),
+                str(marca).strip(),
+                str(modelo).strip(),
+                str(row['rol']).strip(),
+                bool(es_fallecido)
             )
-            cursor.execute(sql, valores)
+            
+            cursor.execute(query, values)
+            count += 1
         
         conn.commit()
-        print(f"✓ {len(df)} vehículos importados")
         cursor.close()
+        print(f"   ✓ Importados {count} registros")
+        return count
         
     except Exception as e:
-        print(f"✗ Error importando vehículos: {e}")
+        print(f"   ✗ Error: {e}")
         conn.rollback()
-
-def verificar_importacion(conn):
-    """Verifica que los datos se importaron correctamente"""
-    try:
-        cursor = conn.cursor()
-        
-        tablas = [
-            'usuarios',
-            'avenidas', 
-            'tipos_siniestro',
-            'siniestros',
-            'vehiculos_involucrados'
-        ]
-        
-        print("\n📊 RESUMEN DE IMPORTACIÓN:")
-        print("-" * 50)
-        
-        for tabla in tablas:
-            cursor.execute(f"SELECT COUNT(*) FROM {tabla}")
-            count = cursor.fetchone()[0]
-            print(f"  {tabla:30} {count:5} registros")
-        
-        print("-" * 50)
-        cursor.close()
-        
-    except Exception as e:
-        print(f"✗ Error verificando importación: {e}")
+        return 0
 
 def main():
     """Función principal"""
     print("=" * 50)
     print("  IMPORTACIÓN DE DATOS - SINIESTROS VIALES")
     print("=" * 50)
-    print()
     
-    # Crear conexión
-    conn = crear_conexion()
+    conn = conectar_db()
+    
     if not conn:
         return
     
     try:
-        # Importar en orden correcto (respetando foreign keys)
+        resultados = {}
+        
         print("\n1. Importando usuarios...")
-        importar_usuarios(conn)
+        resultados['usuarios'] = importar_usuarios(conn)
         
         print("\n2. Importando avenidas...")
-        importar_avenidas(conn)
+        resultados['avenidas'] = importar_avenidas(conn)
         
         print("\n3. Importando tipos de siniestro...")
-        importar_tipos_siniestro(conn)
+        resultados['tipos_siniestro'] = importar_tipos_siniestro(conn)
         
         print("\n4. Importando siniestros...")
-        importar_siniestros(conn)
+        resultados['siniestros'] = importar_siniestros(conn)
         
         print("\n5. Importando vehículos involucrados...")
-        importar_vehiculos(conn)
+        resultados['vehiculos_involucrados'] = importar_vehiculos(conn)
         
-        # Verificar
-        verificar_importacion(conn)
+        # Resumen
+        print("\n📊 RESUMEN DE IMPORTACIÓN:")
+        print("-" * 50)
+        total = 0
+        for tabla, count in resultados.items():
+            print(f"  {tabla:30} {count:3} registros")
+            total += count
+        print("-" * 50)
+        print(f"  {'TOTAL':30} {total:3} registros")
         
         print("\n" + "=" * 50)
-        print("  ✓ IMPORTACIÓN COMPLETADA EXITOSAMENTE")
+        print("  ✓ IMPORTACIÓN COMPLETADA")
         print("=" * 50)
+        
+        print("\n🔑 CREDENCIALES DE ACCESO:")
+        print("-" * 50)
+        print("  Admin:")
+        print("    Email: admin@rutasegura.com")
+        print("    Password: admin123")
+        print("\n  Editor:")
+        print("    Email: editor@rutasegura.com")
+        print("    Password: editor123")
+        print("\n  Consultor:")
+        print("    Email: consultor@rutasegura.com")
+        print("    Password: consultor123")
+        print("-" * 50)
         
     except Exception as e:
         print(f"\n✗ Error general: {e}")
         
     finally:
-        if conn and conn.is_connected():
+        if conn.is_connected():
             conn.close()
             print("\n✓ Conexión cerrada")
 
