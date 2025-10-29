@@ -5,16 +5,19 @@ Usando SQLAlchemy con soporte asíncrono
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
+from sqlalchemy import text  # ← IMPORTANTE: Importar text
 from typing import AsyncGenerator
 from .settings import settings
 
+# URL de conexión asíncrona a MySQL
 DATABASE_URL = f"mysql+aiomysql://{settings.DATABASE_USER}:{settings.DATABASE_PASSWORD}@{settings.DATABASE_HOST}:{settings.DATABASE_PORT}/{settings.DATABASE_NAME}"
 
+# Motor asíncrono
 engine = create_async_engine(
     DATABASE_URL,
-    echo=settings.DEBUG,  # Log de queries SQL en modo debug
-    pool_pre_ping=True,   # Verificar conexión antes de usar
-    pool_recycle=3600     # Reciclar conexiones cada hora
+    echo=False,  # Cambiado a False para no ver tanto log
+    pool_pre_ping=True,
+    pool_recycle=3600
 )
 
 # Session maker asíncrono
@@ -46,8 +49,8 @@ async def init_db():
     """Inicializa la conexión a la base de datos"""
     try:
         async with engine.begin() as conn:
-            # Verificar conexión
-            await conn.execute("SELECT 1")
+            # Verificar conexión - USAR text()
+            await conn.execute(text("SELECT 1"))
         print("✅ Conexión a MySQL establecida exitosamente")
     except Exception as e:
         print(f"❌ Error al conectar con MySQL: {e}")
