@@ -20,3 +20,11 @@ python -m venv venv
  
 # Con el entorno virtual ACTIVADO
 pip install -r requirements.txt
+
+
+#inicia el backend (en carpeta raiz):
+cd backend: uvicorn main:app --reload
+
+#inicia el frontend (en carpeta raiz):
+cd frontend: npm run dev
+
